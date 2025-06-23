@@ -75,17 +75,17 @@ class Escritor(threading.Thread): # Establece que cada Escritor sera un hilo dif
         while not self._detener.is_set():
             try:
                 tipo, mensaje = canal_peticiones.get(timeout=2)
-                if tipo != "escribir":
-                    canal_peticiones.put((tipo, mensaje))  # No es mío, lo devuelvo
-                    continue
+                if tipo != "escribir": # Si es tipo que devuelve el canal de peticiones es diferente a tipo devuelve
+                    canal_peticiones.put((tipo, mensaje))  # No es mio, lo devuelvo
+                    continue # continua
 
-                mutex_escritura.acquire()
-                base_datos.append(mensaje)
-                print(f"[ESCRITOR {self.id}] Escribió en la base de datos: {mensaje}")
-                time.sleep(random.uniform(0.1, 0.5))
-                mutex_escritura.release()
+                mutex_escritura.acquire() # Aqui bloquea a los lectores y escritores
+                base_datos.append(mensaje) # Aqui se agregan los mensajes a la base de dato
+                print(f"[ESCRITOR {self.id}] Escribió en la base de datos: {mensaje}") # Se printea los mensajes
+                time.sleep(random.uniform(0.1, 0.5)) # Tiempo
+                mutex_escritura.release() # Se cambia a modo escritura
 
-                canal_peticiones.task_done()
+                canal_peticiones.task_done() # Termina las colas 
 
             except queue.Empty:
                 print(f"[ESCRITOR {self.id}] Esperando peticiones...")

@@ -49,17 +49,17 @@ class HiloVentas(threading.Thread): # Se crea una clase personalizada con el cua
         productos = ['Laptop', 'Mouse', 'Teclado', 'Monitor', 'Impresora'] # Productos q se pueden seleccionar
         while not self._detener.is_set(): # Mientras que no se detenga
             orden = { # Esto de aqui se encarga de realizar ordenes aleatorias con la libreria de random
-                'id': id_orden, # ID del producto
-                'producto': random.choice(productos), # Seleccion un producto random
-                'cantidad': random.randint(1, 5) # Candidad aleatoria entre 1 y 5
+                'ID': id_orden, # ID del producto
+                'Producto': random.choice(productos), # Seleccion un producto random
+                'Cantidad': random.randint(1, 5) # Candidad aleatoria entre 1 y 5
             }
             try: # Intenta meter las ordenes de arriba
                 self.canal.put(orden, timeout=2) # Lo mete a la cola o lo intenta al menos y tiene un tiempo maximo de espera de 2 segundos si no tira el cola llena FULL de abajo
-                print(f"[PRODUCTOR] Orden generada: {orden}") # Printea el numero de orden
+                print(f"[PRODUCTOR] Orden generada: [ID = {orden['ID']}, Producto = {orden['Producto']}, Cantidad = {orden['Cantidad']}]") # Printea el numero de orden
                 id_orden += 1 # Suma la cantidad de ordenes segun esta se le vaya dando osea Orden 1, Orden 2...
             except queue.Full: # En caso de que la cola este llena ocurre este except
                 print("[PRODUCTOR] Canal lleno. No se pudo enviar la orden.") # Printea esto en caso de FULL
-            time.sleep(random.uniform(0.5, 1.5))  # Simula tiempo de creación para que no vaya soltando las cosas altiro
+            time.sleep(random.uniform(0.1, 1))  # Simula tiempo de creación para que no vaya soltando las cosas altiro
 
 class HiloProcesamiento(threading.Thread): # Encargado de procesar las ordenes dadas anteriormente en la clase HiloVentas
     def __init__(self, canal):
@@ -74,10 +74,10 @@ class HiloProcesamiento(threading.Thread): # Encargado de procesar las ordenes d
         while not self._detener.is_set(): # Mientas no este detenido ejecuta
             try:
                 orden = self.canal.get(timeout=2)
-                print(f"[CONSUMIDOR] Procesando orden: {orden}")
-                time.sleep(random.uniform(1, 2))  # Simula tiempo de procesamiento
+                print(f"[CONSUMIDOR] Procesando orden: [ID = {orden['ID']}, Producto = {orden['Producto']}, Cantidad = {orden['Cantidad']}]")
+                time.sleep(random.uniform(0.1, 1))  # Simula tiempo de procesamiento
                 self.canal.task_done() # Termina las tareas que se le vayan dando
-                print(f"[CONSUMIDOR] Orden procesada: {orden['id']}")
+                print(f"[CONSUMIDOR] Orden procesada: {orden['ID']}\n")
             except queue.Empty: # Cuando este vacio se termina
                 print("[CONSUMIDOR] Canal vacío. Esperando órdenes...")
 
@@ -90,7 +90,7 @@ if __name__ == "__main__": # Ejecuta
     productor.start()
     consumidor.start()
 
-    # Ejecuta esto durante 15 segundos a menos que uno mismo lo detenga Ctrl + c
+    # Ejecuta esto durante 15 segundos a menos que uno mismo lo detenga Ctrl + c detener ejecución
     try:
         time.sleep(15)  # Ejecutar durante 15 segundos
     except KeyboardInterrupt:

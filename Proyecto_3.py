@@ -1,36 +1,107 @@
-# ¿Qué significa esto para tu tarea en Python?
+# Componentes Clave a Implementar:
+#
+# El Canal de Mensajes (Cola):
+#
+# Una instancia de queue.Queue que servirá como el "buzón" o "canal" por donde las órdenes (mensajes) serán pasadas de un hilo a otro.
+# Podrías definirle un maxsize para simular un buffer limitado y ver cómo afecta la sincronización (bloqueo) de los hilos.
+# El Hilo Productor (HiloVentas):
+#
+# Una clase que herede de threading.Thread.
+# Su método run() contendrá la lógica para:
+# Generar "órdenes" (pueden ser diccionarios con id, producto, cantidad). Aquí usarás random para variar los datos de la orden.
+# Enviar estas órdenes al canal de mensajes usando cola.put().
+# Simular el tiempo que toma generar una nueva orden usando time.sleep().
+# Manejar posibles bloqueos o excepciones si el canal está lleno (usando timeout en put() y un bloque try-except queue.Full).
+# El Hilo Consumidor (HiloProcesamiento):
+#
+# Otra clase que herede de threading.Thread.
+# Su método run() contendrá la lógica para:
+# Recibir órdenes del canal de mensajes usando cola.get().
+# Simular el tiempo que toma procesar una orden usando time.sleep().
+# Manejar posibles bloqueos o excepciones si el canal está vacío (usando timeout en get() y un bloque try-except queue.Empty).
+# Indicar que una orden ha sido procesada llamando a cola.task_done().
+# El Programa Principal (Main):
+#
+# Aquí es donde se instancian el canal de mensajes y los hilos productor y consumidor.
+# Se inician los hilos (hilo.start()).
+# Se controlará el ciclo de vida de la aplicación, permitiendo que los hilos se ejecuten por un tiempo.
+# Se asegurará una detención controlada de los hilos (hilo.stop() y hilo.join()).
 
-# Necesitarás implementar un sistema donde diferentes partes de tu programa (hilos o procesos)
-# se comuniquen usando el concepto de "mensajes" en lugar de acceder directamente a la misma memoria.
+# Se importan las librerias que utilizaremos
+import threading
+import queue
+import random
+import time
 
-# Python tiene módulos que te permiten implementar esto:
+canal_mensajes = queue.Queue(maxsize=5) # Canal de mensajes cuantos mensajes se pueden leer al mismo tiempo si son mmas de 5 se bloquea
 
-# Módulo threading (para hilos): Puedes crear múltiples hilos dentro de un mismo proceso.
+class HiloVentas(threading.Thread): # Se crea una clase personalizada con el cual va a realizar ordenes cuando empiece el .start mas abajo
+    def __init__(self, canal): # Inicializa el hilo, guarda la cola y crea un interruptor para detenerlo despues
+        super().__init__() # Llama a lo de arriba, la clase Thread, para que se inicialice como un hilo
+        self.canal = canal # Guarda en canal como un atributo del objeto. Así puede usarlo en run() // aqui tu vas metiendo cosas al canal con run()
+        self._detener = threading.Event() # Crea un interruptor interno que se puede prender para indicar que el hilo debe detenerse //  donde esta el detenerse
 
-# Módulo multiprocessing (para procesos): Puedes crear procesos separados. Para la comunicación
-# entre procesos, multiprocessing ofrece herramientas como Queue (colas), Pipe (tuberías) que implementan el paso de mensajes.
+    def detener(self): # Sirve para avisarle al hilo que debe detenerse
+        self._detener.set()
 
-# Colas (Queue): Las colas son perfectas para este tipo de comunicación.
+    def run(self): # Aqui se genera una orden se mete a la cola se espera un rato y se repite
+        id_orden = 1 # El primer ID
+        productos = ['Laptop', 'Mouse', 'Teclado', 'Monitor', 'Impresora'] # Productos q se pueden seleccionar
+        while not self._detener.is_set(): # Mientras que no se detenga
+            orden = { # Esto de aqui se encarga de realizar ordenes aleatorias con la libreria de random
+                'id': id_orden, # ID del producto
+                'producto': random.choice(productos), # Seleccion un producto random
+                'cantidad': random.randint(1, 5) # Candidad aleatoria entre 1 y 5
+            }
+            try: # Intenta meter las ordenes de arriba
+                self.canal.put(orden, timeout=2) # Lo mete a la cola o lo intenta al menos y tiene un tiempo maximo de espera de 2 segundos si no tira el cola llena FULL de abajo
+                print(f"[PRODUCTOR] Orden generada: {orden}") # Printea el numero de orden
+                id_orden += 1 # Suma la cantidad de ordenes segun esta se le vaya dando osea Orden 1, Orden 2...
+            except queue.Full: # En caso de que la cola este llena ocurre este except
+                print("[PRODUCTOR] Canal lleno. No se pudo enviar la orden.") # Printea esto en caso de FULL
+            time.sleep(random.uniform(0.5, 1.5))  # Simula tiempo de creación para que no vaya soltando las cosas altiro
 
-# Funcionan como los "canales" o "buzones" que mencionan los slides.
+class HiloProcesamiento(threading.Thread): # Encargado de procesar las ordenes dadas anteriormente en la clase HiloVentas
+    def __init__(self, canal):
+        super().__init__()
+        self.canal = canal
+        self._detener = threading.Event()
 
-# Un hilo/proceso puede put() (enviar) un mensaje en la cola.
+    def detener(self):
+        self._detener.set()
 
-# Otro hilo/proceso puede get() (recibir) un mensaje de la cola.
+    def run(self):
+        while not self._detener.is_set(): # Mientas no este detenido ejecuta
+            try:
+                orden = self.canal.get(timeout=2)
+                print(f"[CONSUMIDOR] Procesando orden: {orden}")
+                time.sleep(random.uniform(1, 2))  # Simula tiempo de procesamiento
+                self.canal.task_done() # Termina las tareas que se le vayan dando
+                print(f"[CONSUMIDOR] Orden procesada: {orden['id']}")
+            except queue.Empty: # Cuando este vacio se termina
+                print("[CONSUMIDOR] Canal vacío. Esperando órdenes...")
 
-# Las colas de Python manejan automáticamente la sincronización bloqueo cuando la cola está vacía o llena,
-# dependiendo de la configuración),
-# lo que simplifica mucho tu trabajo.
+# Programa principal
+if __name__ == "__main__": # Ejecuta
+    productor = HiloVentas(canal_mensajes) # Ejecuta la clase HiloVentas segun el queue de al pricipio y la guarda en productor
+    consumidor = HiloProcesamiento(canal_mensajes) # Ejecuta la clase HiloProcesamiento segun el queue de al pricipio y la guarda en consumidor
 
-# Tu tarea probablemente implicará:
+    # Inicializa las dos variables anteriores
+    productor.start()
+    consumidor.start()
 
-# Definir dos o más "tareas" (hilos o procesos): Por ejemplo, un hilo Ventas y un hilo Procesamiento como en el ejemplo.
+    # Ejecuta esto durante 15 segundos a menos que uno mismo lo detenga Ctrl + c
+    try:
+        time.sleep(15)  # Ejecutar durante 15 segundos
+    except KeyboardInterrupt:
+        print("Interrupción del usuario")
 
-# Establecer un mecanismo de comunicación basado en mensajes: La forma más sencilla y directa en Python es usar una Queue (cola).
+    print("\nDeteniendo hilos...") # Se detiene
+    productor.detener()
+    consumidor.detener()
 
-# Implementar la lógica de envío (send): Una tarea pondrá mensajes (objetos de Python que representen las órdenes) en la cola.
+    # Espera a que terminen de correr.
+    productor.join()
+    consumidor.join()
 
-# Implementar la lógica de recepción (receive): La otra tarea obtendrá mensajes de la cola y los procesará.
-
-# Manejar la sincronización: Afortunadamente, las Queue de Python se encargan de esto por ti (el get() se bloqueará si no hay mensajes, 
-# y el put() puede bloquearse si la cola está llena, si le das un tamaño máximo).
+    print("Programa finalizado.")
